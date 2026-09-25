@@ -154,6 +154,8 @@ The workflow then:
 
 `workflow_dispatch` runs the same pipeline for an existing tag, which is the way to republish after a failed job.
 
+One bootstrap quirk is worth knowing: GitHub only runs a tag-triggered workflow once that workflow file is known on the default branch. So the *first* tag pushed together with a brand-new `release.yml` starts nothing. Push the workflow to the default branch first and tag afterwards, or re-push the tag (or dispatch the run) once it is there. Every later tag triggers normally, including when the branch and tag go up in a single `git push --follow-tags`.
+
 Chrome's version syntax accepts one to four dot-separated integers and no prerelease suffix, so `v0.3.0-rc.1` is rejected — bump to `v0.3.0` or use a build like `v0.3.0.1`. Publishing to the Chrome Web Store is not wired up; it needs store API credentials and a reviewed listing.
 
 ## Contributing
