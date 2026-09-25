@@ -109,8 +109,18 @@ test("cleanText normalizes extraction artifacts", () => {
 test("a reply is only actionable once its text settles", () => {
   // A half-streamed wrapper can look complete enough to detect but not to parse,
   // and replying while the model still generates stops the answer.
-  assert.equal(protocol.isSettled(1, 1, 3), false);
-  assert.equal(protocol.isSettled(2, 1, 3), false);
-  assert.equal(protocol.isSettled(4, 1, 3), true);
-  assert.equal(protocol.isSettled(3, undefined, 3), false, "an unknown change tick must not be treated as settled");
+  assert.equal(protocol.isSettled(1_000, 400, 1_200), false);
+  assert.equal(protocol.isSettled(1_599, 400, 1_200), false);
+  assert.equal(protocol.isSettled(1_600, 400, 1_200), true);
+  assert.equal(protocol.isSettled(9_999, undefined, 1_200), false, "an unknown change time must not be treated as settled");
+});
+
+test("settling is measured against the clock, not against page activity", () => {
+  // DeepSeek renders a reply and then stops touching the DOM completely. A
+  // tick-counting settle gate never opened there, because ticks only come from
+  // mutations, so the reply sat unread in a frozen conversation. The elapsed
+  // time is what decides, so a quiet page settles like any other.
+  const quietPageChangeAt = 10_000;
+  assert.equal(protocol.isSettled(10_999, quietPageChangeAt, 1_200), false);
+  assert.equal(protocol.isSettled(11_200, quietPageChangeAt, 1_200), true);
 });
