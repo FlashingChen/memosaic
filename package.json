@@ -1,6 +1,6 @@
 {
   "name": "memosaic",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "description": "Local-first shared memory for multiple AI chat websites.",
