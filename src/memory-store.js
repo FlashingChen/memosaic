@@ -1,6 +1,7 @@
 const DB_NAME = "memosaic";
 const LEGACY_DB_NAME = "cross-ai-memory";
 const DB_VERSION = 1;
+const DB_OPEN_TIMEOUT_MS = 10_000;
 const STORE_NAME = "documents";
 const STATE_KEY = "user-memory";
 const MAX_HISTORY = 50;
@@ -24,6 +25,19 @@ let databasePromise;
 
 function openNamedDatabase(name) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (complete, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      complete(value);
+    };
+    // An IndexedDB open has no timeout of its own. A request that never settles
+    // would hang every memory call for the life of the service worker.
+    const timer = setTimeout(
+      () => settle(reject, new Error("Local memory storage did not open in time.")),
+      DB_OPEN_TIMEOUT_MS
+    );
     const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -31,9 +45,9 @@ function openNamedDatabase(name) {
         db.createObjectStore(STORE_NAME, { keyPath: "id" });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error("Could not open local memory storage."));
-    request.onblocked = () => reject(new Error("Memory storage upgrade is blocked by another extension page."));
+    request.onsuccess = () => settle(resolve, request.result);
+    request.onerror = () => settle(reject, request.error || new Error("Could not open local memory storage."));
+    request.onblocked = () => settle(reject, new Error("Memory storage upgrade is blocked by another extension page."));
   });
 }
 
@@ -104,6 +118,12 @@ function openDatabase() {
     await migrateLegacyState(database);
     return database;
   })();
+
+  // A failed open must not be cached for the life of the service worker: the
+  // next memory call should be able to retry it.
+  databasePromise.catch(() => {
+    databasePromise = undefined;
+  });
 
   return databasePromise;
 }

@@ -10,13 +10,32 @@
   const previousText = new WeakMap();
   const textChangedAt = new WeakMap();
   const handledResponses = new WeakSet();
-  const STABLE_SCAN_TICKS = 3;
-  let scanTick = 0;
+  const attempts = new WeakMap();
+  // How long a reply must stop changing before it is safe to read. This is a
+  // duration, not a number of scans: the scan is driven by a heartbeat as well
+  // as by mutations, so the reply is read on time even when the page is idle.
+  const SETTLE_MS = 1200;
+  const SCAN_INTERVAL_MS = 500;
+  // A failed tool round trip stays retryable. Reloading the extension while a
+  // page stays open leaves this content script with a dead extension context,
+  // and a service worker can fail to answer; neither may leave a reply that was
+  // already read sitting unanswered forever.
+  const RETRY_MS = 4000;
+  const MAX_ATTEMPTS = 3;
+  const TOOL_TIMEOUT_MS = 15_000;
+  // A transcript re-render hands the same tool call back as a new element, and
+  // element identity cannot dedupe that. The result of the first delivery is
+  // already in the conversation, so an identical call is only delivered once per
+  // conversation inside this window.
+  const DUPLICATE_DELIVERY_MS = 60_000;
+  const deliveries = new Map();
   let currentLocale = i18n.normalizeLocale("auto");
   let turnIsActive = false;
   let hasBootstrapped = false;
   let currentConversationKey = conversationKey();
   let lastSubmitAt = 0;
+  let lastToolCall = null;
+  let lastError = null;
   let scanTimer;
 
   try {
@@ -37,6 +56,28 @@
       return adapter.conversationKey(location) || null;
     } catch {
       return null;
+    }
+  }
+
+  // Reloading or updating the extension leaves this content script running with
+  // a dead extension context: the DOM work keeps succeeding, every extension
+  // call fails, and without this check the failure is completely silent. The
+  // messaging function is the thing that must exist; a context that is gone has
+  // no chrome.runtime at all, which is what "Cannot read properties of undefined
+  // (reading 'sendMessage')" means.
+  function extensionAlive() {
+    try {
+      return typeof globalThis.chrome?.runtime?.sendMessage === "function";
+    } catch {
+      return false;
+    }
+  }
+
+  function log(...values) {
+    try {
+      console.debug("[Memosaic]", ...values);
+    } catch {
+      // Logging is optional.
     }
   }
 
@@ -293,13 +334,19 @@
 
   function snapshotElement(element) {
     previousText.set(element, normalizedText(element));
-    textChangedAt.set(element, scanTick);
+    textChangedAt.set(element, Date.now());
   }
 
   function markSubmitted() {
     lastSubmitAt = Date.now();
     turnIsActive = true;
     snapshotResponses();
+    // A submit is the moment the page can be told that this content script is
+    // stale, instead of waiting for a tool call that can never be delivered.
+    if (!extensionAlive()) {
+      log("submit with a dead extension context; a refresh is required");
+      showToast(i18n.translate(currentLocale, "toast.reloadRequired"), true, true);
+    }
   }
 
   function prepareFirstMessage(field) {
@@ -341,7 +388,7 @@
     prepareFirstMessage(field);
   }, true);
 
-  function showToast(message, isError = false) {
+  function showToast(message, isError = false, sticky = false) {
     let hostElement = document.getElementById("memosaic-memory-toast-host");
     if (!hostElement) {
       hostElement = document.createElement("div");
@@ -362,6 +409,9 @@
     notice.style.opacity = "1";
     notice.style.transform = "translateY(0)";
     clearTimeout(showToast.timer);
+    // A notice that asks for an action the user has to take stays until the next
+    // notice replaces it, because the page cannot recover on its own.
+    if (sticky) return;
     showToast.timer = setTimeout(() => {
       notice.style.opacity = "0";
       notice.style.transform = "translateY(-4px)";
@@ -383,65 +433,152 @@
     return `INVALID_TOOL_CALL: the tool payload is not valid JSON. Payload: ${visible || "(empty)"}`;
   }
 
+  // A service worker that never answers must not become a reply that is never
+  // read. The call itself is deferred into the promise so that a synchronous
+  // throw (a dead extension context) is reported like any other failure.
+  function withTimeout(start, milliseconds) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`no answer from the memory extension after ${milliseconds} ms`));
+      }, milliseconds);
+      Promise.resolve()
+        .then(start)
+        .then(
+          (value) => {
+            clearTimeout(timer);
+            resolve(value);
+          },
+          (error) => {
+            clearTimeout(timer);
+            reject(error);
+          }
+        );
+    });
+  }
+
+  function finishAttempt(element, attempt, message, isFinal = false) {
+    lastError = message;
+    log("tool call failed", `attempt ${attempt.count}/${MAX_ATTEMPTS}`, message);
+    if (isFinal || attempt.count >= MAX_ATTEMPTS) {
+      handledResponses.add(element);
+      showToast(i18n.translate(currentLocale, "toast.toolGaveUp", { error: message }), true);
+      return;
+    }
+    showToast(i18n.translate(currentLocale, "toast.toolFailed", { error: message }), true);
+  }
+
   async function processToolCall(element, callInfo, text, routeKey) {
+    const attempt = attempts.get(element) || { count: 0 };
+    attempt.count += 1;
+    attempt.nextAt = Date.now() + RETRY_MS;
+    attempts.set(element, attempt);
     snapshotElement(element);
-    handledResponses.add(element);
-    const request = callInfo.malformed
-      ? Promise.resolve({ ok: false, error: malformedReason(text) })
-      : chrome.runtime.sendMessage({ type: "TOOL_CALL", call: callInfo.call });
+
+    const describe = (error) => (error instanceof Error ? error.message : String(error || ""))
+      || i18n.translate(currentLocale, "toast.extensionUnavailable");
+
+    if (!extensionAlive()) {
+      // Every call would fail, so say what to do instead of retrying into a void.
+      handledResponses.add(element);
+      lastError = "extension context invalidated";
+      log("tool call dropped: the extension context is gone");
+      showToast(i18n.translate(currentLocale, "toast.reloadRequired"), true, true);
+      return;
+    }
+
+    if (callInfo.malformed) {
+      // A malformed payload is the model's output, not a transient failure, so
+      // repeating the same call would only repeat the same error.
+      finishAttempt(element, attempt, malformedReason(text), true);
+      return;
+    }
+
+    const deliveryKey = `${routeKey || location.origin}::${callInfo.call.name}:${JSON.stringify(callInfo.call.arguments ?? {})}`;
+    const deliveredAt = deliveries.get(deliveryKey);
+    if (deliveredAt !== undefined && Date.now() - deliveredAt < DUPLICATE_DELIVERY_MS) {
+      handledResponses.add(element);
+      log("duplicate tool call ignored", deliveryKey);
+      return;
+    }
 
     try {
-      const response = await request;
-      const result = response?.ok ? response.result : (response?.error || "TOOL_ERROR: no response from the memory extension.");
-      showToast(
-        response?.ok
-          ? i18n.translate(currentLocale, "toast.toolCompleted")
-          : result,
-        !response?.ok
+      const response = await withTimeout(
+        () => chrome.runtime.sendMessage({ type: "TOOL_CALL", call: callInfo.call }),
+        TOOL_TIMEOUT_MS
       );
+
+      if (!response?.ok) {
+        // The reply is only marked handled once its result was delivered, so a
+        // transient failure is retried by a later scan.
+        finishAttempt(element, attempt, response?.error || "TOOL_ERROR: no response from the memory extension.");
+        return;
+      }
+
+      lastToolCall = { name: callInfo.call?.name || null, at: Date.now(), ok: true };
+      log("tool call answered", callInfo.call?.name || "(none)");
+      showToast(i18n.translate(currentLocale, "toast.toolCompleted"));
+
       if (routeKey !== conversationKey()) {
+        handledResponses.add(element);
         showToast(i18n.translate(currentLocale, "toast.routeChanged"), true);
         return;
       }
-      const followUp = protocol.createToolResultFollowUp(result, currentLocale);
+
+      const followUp = protocol.createToolResultFollowUp(response.result, currentLocale);
       snapshotResponses();
       const sent = await sendText(followUp);
       if (!sent) {
-        showToast(i18n.translate(currentLocale, "toast.sendFailed"), true);
-      } else {
-        turnIsActive = true;
-        lastSubmitAt = Date.now();
+        finishAttempt(element, attempt, i18n.translate(currentLocale, "toast.sendFailed"));
+        return;
       }
+
+      handledResponses.add(element);
+      attempts.delete(element);
+      deliveries.set(deliveryKey, Date.now());
+      for (const [key, at] of deliveries) {
+        if (Date.now() - at > DUPLICATE_DELIVERY_MS) deliveries.delete(key);
+      }
+      turnIsActive = true;
+      lastSubmitAt = Date.now();
+      log("tool result delivered", deliveryKey);
     } catch (error) {
-      const fallback = i18n.translate(currentLocale, "toast.extensionUnavailable");
-      showToast(i18n.translate(currentLocale, "toast.toolFailed", {
-        error: error?.message || fallback
-      }), true);
+      finishAttempt(element, attempt, describe(error));
     }
   }
 
   function scanResponses() {
-    scanTick += 1;
-    if (!turnIsActive) {
-      snapshotResponses();
-      return;
+    try {
+      scan();
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      log("scan failed", lastError);
     }
+  }
 
+  function scan() {
+    const now = Date.now();
     const candidates = currentResponseCandidates();
+
     for (const element of candidates) {
       const text = normalizedText(element);
-      if (handledResponses.has(element) || text.length > 24_000) continue;
-
       const baseline = previousText.get(element);
+
       if (baseline === undefined || text !== baseline) {
         // The reply is still streaming. Acting on a half-finished wrapper is a
-        // way to read a truncated payload, so record the change and wait.
+        // way to read a truncated payload, so record the change and wait. A
+        // reply that is still being written also proves a turn is live, so a
+        // route change that cleared the flag cannot strand it.
+        if (baseline !== undefined && !turnIsActive) {
+          turnIsActive = true;
+          log("reply activity re-armed the turn");
+        }
         previousText.set(element, text);
-        textChangedAt.set(element, scanTick);
+        textChangedAt.set(element, now);
         continue;
       }
 
-      if (!protocol.isSettled(scanTick, textChangedAt.get(element), STABLE_SCAN_TICKS)) continue;
+      if (!turnIsActive || handledResponses.has(element) || text.length > 24_000) continue;
+      if (!protocol.isSettled(now, textChangedAt.get(element), SETTLE_MS)) continue;
 
       const callInfo = protocol.parseResponse(text);
       if (!callInfo) continue;
@@ -449,6 +586,10 @@
         other !== element && element.contains(other) && normalizedText(other) === text
       ));
       if (hasMatchingDescendant) continue;
+
+      const attempt = attempts.get(element);
+      if (attempt?.nextAt && now < attempt.nextAt) continue;
+
       processToolCall(element, callInfo, text, conversationKey());
       return;
     }
@@ -461,6 +602,14 @@
 
   const observer = new MutationObserver(scheduleScan);
   observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: false });
+
+  // Mutations alone cannot guarantee a scan. A provider can render a reply and
+  // then stop touching the DOM entirely, which is precisely the state that means
+  // the reply has settled and its tool call is waiting to be read, so the scan
+  // is driven by a heartbeat as well. While no turn is live the heartbeat only
+  // refreshes the baselines, so a restored transcript is never replayed.
+  setInterval(scanResponses, SCAN_INTERVAL_MS);
+
   snapshotResponses();
 
   function onRouteChange() {
@@ -468,14 +617,34 @@
     if (nextKey === currentConversationKey) return;
     const createdByRecentSubmit = Date.now() - lastSubmitAt < 7000;
     currentConversationKey = nextKey;
+    log("route changed", nextKey);
     if (createdByRecentSubmit && hasBootstrapped) {
       saveBootstrapState();
-    } else {
-      restoreConversationState();
-      turnIsActive = false;
-      snapshotResponses();
+      return;
     }
+    restoreConversationState();
+    turnIsActive = false;
+    snapshotResponses();
   }
+
+  // A small read-only surface for the DevTools console. Select the extension's
+  // JavaScript context and run `Memosaic.debug.state()` to see why a turn did
+  // not complete.
+  Memosaic.debug = Object.freeze({
+    state() {
+      return {
+        adapter: adapter.id,
+        conversationKey: conversationKey(),
+        turnIsActive,
+        hasBootstrapped,
+        extensionAlive: extensionAlive(),
+        lastSubmitAt: lastSubmitAt ? new Date(lastSubmitAt).toISOString() : null,
+        candidateCount: currentResponseCandidates().length,
+        lastToolCall,
+        lastError
+      };
+    }
+  });
 
   window.addEventListener("popstate", onRouteChange);
   window.addEventListener("hashchange", onRouteChange);

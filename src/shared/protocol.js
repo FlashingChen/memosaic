@@ -144,9 +144,15 @@
   // A reply is only safe to act on once its text has stopped changing. Reading a
   // half-streamed wrapper is a way to parse a truncated payload, and replying
   // while the model still generates stops that answer.
-  function isSettled(scanTick, changedAtTick, stableTicks) {
-    if (!Number.isFinite(changedAtTick)) return false;
-    return scanTick - changedAtTick >= stableTicks;
+  //
+  // The age of the last change is measured against the clock, not in scan ticks.
+  // A tick is only produced by a DOM mutation, so measuring in ticks makes the
+  // decision depend on the page staying busy: a provider that finishes a reply
+  // and then goes completely idle (DeepSeek) would never accumulate the stable
+  // ticks it needs, and the tool call would wait for activity that never comes.
+  function isSettled(nowMs, changedAtMs, stableMs) {
+    if (!Number.isFinite(changedAtMs)) return false;
+    return nowMs - changedAtMs >= stableMs;
   }
 
   Memosaic.protocol = Object.freeze({

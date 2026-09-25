@@ -40,6 +40,8 @@ Adapters are data plus small provider-local functions. They do not read or write
 
 The controller uses a `WeakMap` for response text snapshots and a `WeakSet` for handled tool-call elements so a streaming reasoning header cannot trigger the same call twice.
 
+A reply is only read once its text has stopped changing for a fixed duration, measured against the clock. The scan itself is driven by both DOM mutations and a heartbeat, because a provider can finish a reply and then leave the page completely still — the condition that means the reply has settled.
+
 ## Adding a provider
 
 A new provider normally requires only:

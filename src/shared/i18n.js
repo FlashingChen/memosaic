@@ -49,6 +49,8 @@
       "toast.routeChanged": "The conversation changed before the memory result could be returned. Retry the tool call in that chat.",
       "toast.sendFailed": "The site could not send the tool result. Check the composer or sign in, then retry.",
       "toast.toolFailed": "Memory tool failed: {error}",
+      "toast.toolGaveUp": "Memory tool failed: {error} Refresh this page and try again.",
+      "toast.reloadRequired": "Memosaic was reloaded or updated while this page stayed open. Refresh the page, then send the message again.",
       "toast.extensionUnavailable": "extension unavailable",
 
       "prompt.bootstrap": `Persistent user-owned memory tools are available through the Memosaic extension. Memory is shared across supported chats and is not included automatically.
@@ -113,6 +115,8 @@ For edits, use the same wrapper with edit_memory JSON. Wait for the extension's 
       "toast.routeChanged": "返回记忆结果前对话已经切换，请在新对话中重试工具调用。",
       "toast.sendFailed": "网站无法发送工具结果。请检查输入框或登录状态后重试。",
       "toast.toolFailed": "记忆工具失败：{error}",
+      "toast.toolGaveUp": "记忆工具失败：{error} 请刷新本页面后重试。",
+      "toast.reloadRequired": "Memosaic 已在页面打开期间重新加载或更新。请刷新本页面，然后重新发送消息。",
       "toast.extensionUnavailable": "扩展不可用",
 
       "prompt.bootstrap": `Memosaic 扩展提供了由用户持有的持久记忆工具。记忆会在受支持的对话之间共享，但不会自动放进对话。
