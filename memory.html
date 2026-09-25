@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Memory editor · Cross-AI Memory</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">LOCAL MEMORY</p>
+          <h1>Your memory</h1>
+          <p class="muted">A single Markdown document shared with supported AI chats in this browser.</p>
+        </div>
+        <span id="revision" class="revision-pill">Loading…</span>
+      </header>
+
+      <section class="editor-card" aria-labelledby="memory-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="memory-heading">Memory document</h2>
+            <p class="muted">Review what the AIs can read. Saving creates a new revision.</p>
+          </div>
+          <span id="char-count" class="muted">0 characters</span>
+        </div>
+        <textarea id="memory" spellcheck="false" aria-label="Memory document" placeholder="# User"></textarea>
+        <div class="editor-actions">
+          <span id="status" role="status" class="status-message">Loading memory…</span>
+          <div class="button-row">
+            <button id="refresh" class="secondary-button">Reload</button>
+            <button id="clear" class="danger-button">Clear memory</button>
+            <button id="save" class="primary-button">Save changes</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="history-card" aria-labelledby="history-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="history-heading">Recent edits</h2>
+            <p class="muted">The latest 50 successful changes are kept locally.</p>
+          </div>
+        </div>
+        <ol id="history" class="history-list"></ol>
+        <p id="empty-history" class="empty-state" hidden>No edits yet.</p>
+      </section>
+
+      <footer class="page-footer">No cloud account or sync is used. Each browser profile has its own memory.</footer>
+    </main>
+    <script src="src/memory-page.js"></script>
+  </body>
+</html>

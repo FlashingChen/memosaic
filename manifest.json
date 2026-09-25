@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Cross-AI Memory",
+  "version": "0.1.0",
+  "description": "A local, user-owned memory shared across supported AI chat websites.",
+  "background": {
+    "service_worker": "src/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Cross-AI Memory",
+    "default_popup": "popup.html"
+  },
+  "options_page": "memory.html",
+  "content_scripts": [
+    {
+      "matches": ["https://chat.deepseek.com/*"],
+      "js": ["src/provider-adapter.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["src/provider-adapter.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://aistudio.xiaomimimo.com/*"],
+      "js": ["src/provider-adapter.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
