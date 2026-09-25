@@ -205,6 +205,8 @@ Chrome 的版本号语法只接受 1 到 4 段以点分隔的数字，不接受�
 
 请勿在 issue 或提交中包含会话令牌、Cookie、私人聊天内容或个人记忆片段。
 
+参与本项目的所有人都应遵守[行为准则](CODE_OF_CONDUCT.md)。版本变更记录见[更新日志](CHANGELOG.md)。
+
 ## 许可证
 
 MIT，详见 [LICENSE](LICENSE)。

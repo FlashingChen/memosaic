@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Adding or repairing a provider adapter
+    url: https://github.com/FlashingChen/memosaic/blob/main/docs/adapters.md
+    about: The adapter contract, a template to copy, and the checklist for a new provider.
+  - name: How the extension is put together
+    url: https://github.com/FlashingChen/memosaic/blob/main/docs/architecture.md
+    about: The five layers, the tool-call bridge, and where provider code is allowed to live.
+  - name: Security vulnerability
+    url: https://github.com/FlashingChen/memosaic/security/policy
+    about: Please report security issues privately instead of opening an issue.

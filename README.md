@@ -205,6 +205,8 @@ Provider adapters are the main contribution path — AI chat pages change often,
 
 Please never include session tokens, cookies, private chat text, or personal memory excerpts in issues or commits.
 
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Release history lives in the [changelog](CHANGELOG.md).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
