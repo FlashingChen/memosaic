@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest an idea, or ask for a new provider
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Memosaic deliberately keeps a very small surface: one local Markdown
+        document, and two tools exposed to the page. Requests that fit that shape
+        are the easiest to accept.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation you are in, not the solution yet.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - A new provider adapter
+        - An existing adapter is broken
+        - Memory storage or revisions
+        - The tool-call protocol
+        - Popup, editor, or styling
+        - Localization
+        - Documentation
+        - Build, CI, or tooling
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed session tokens, cookies, conversation text, and personal memory from this request.
+          required: true
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true

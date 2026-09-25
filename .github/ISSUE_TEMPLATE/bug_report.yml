@@ -1,0 +1,83 @@
+name: Bug report
+description: Something is broken in Memosaic
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report.
+
+        **Please remove private data first.** Do not paste conversation text,
+        personal memory excerpts, session tokens, or cookies. A minimal
+        description of the page structure is almost always enough.
+
+  - type: input
+    id: version
+    attributes:
+      label: Memosaic version
+      description: Shown on the Memosaic card in `chrome://extensions`.
+      placeholder: "0.2.3"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      placeholder: "Chrome 153.0.8010.53 on macOS 15.6"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Which provider is affected?
+      options:
+        - DeepSeek (chat.deepseek.com)
+        - Gemini (gemini.google.com)
+        - Xiaomi MiMo Studio (aistudio.xiaomimimo.com)
+        - Not provider-specific
+        - More than one
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you expected to happen, and what happened instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a new conversation on ...
+        2. Send a prompt that needs personal context
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console or service worker errors
+      description: |
+        Open `chrome://extensions`, click **service worker** under Memosaic, and
+        paste any errors. Remove anything private before pasting.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed session tokens, cookies, conversation text, and personal memory from this report.
+          required: true
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true

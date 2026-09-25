@@ -1,0 +1,30 @@
+# Groups the auto-generated release notes (gh release create --generate-notes).
+# A pull request lands in the first category whose label it carries, so the
+# order below is the order they appear in a release.
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Breaking changes
+      labels:
+        - breaking change
+    - title: Providers
+      labels:
+        - provider
+    - title: Features
+      labels:
+        - enhancement
+    - title: Fixes
+      labels:
+        - bug
+    - title: Documentation
+      labels:
+        - documentation
+    - title: Build, CI, and tooling
+      labels:
+        - ci
+        - dependencies
+    - title: Other changes
+      labels:
+        - "*"
