@@ -104,7 +104,8 @@ button:active { transform: translateY(1px); }
 
 .popup-page { width: 320px; min-height: auto; background: #fff; }
 .popup-card { padding: 20px; display: grid; grid-template-columns: 38px 1fr; column-gap: 11px; align-items: center; }
-.brand-mark { width: 38px; height: 38px; display: grid; place-items: center; color: white; background: linear-gradient(145deg, #6683ee, #3c56b7); border-radius: 12px; font-size: 19px; font-weight: 800; }
+.brand-mark { width: 38px; height: 38px; display: block; }
+.brand-mark img { display: block; width: 100%; height: 100%; }
 .popup-card h1 { font-size: 15px; letter-spacing: -.01em; }
 .popup-card .muted { margin: 4px 0 0; font-size: 11px; }
 .supported-sites { grid-column: 1 / -1; display: flex; gap: 6px; margin: 18px 0 13px; }

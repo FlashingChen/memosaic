@@ -43,6 +43,18 @@ const ROOT_FILES = [
 const SOURCE_DIRS = ["src"];
 
 /**
+ * Icon assets referenced by manifest.json, listed explicitly so that
+ * icons/generate.py, the 512px listing asset, and the design-check preview
+ * stay out of the shipped bundle.
+ */
+const ICON_FILES = [
+  "icons/icon16.png",
+  "icons/icon32.png",
+  "icons/icon48.png",
+  "icons/icon128.png",
+];
+
+/**
  * Development-only files that live inside a shipped directory. The adapter
  * template is scaffolding for contributors and is not part of the runtime.
  */
@@ -114,7 +126,7 @@ function collectDirectory(dir) {
 }
 
 function resolveBundleFiles() {
-  const files = [...ROOT_FILES];
+  const files = [...ROOT_FILES, ...ICON_FILES];
 
   for (const dir of SOURCE_DIRS) {
     files.push(...collectDirectory(dir));

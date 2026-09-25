@@ -2,3 +2,7 @@
 *.zip
 node_modules/
 dist/
+
+# icon generator artifacts: the design check and Python's bytecode cache
+icons/_toolbar-preview.png
+__pycache__/
