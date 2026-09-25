@@ -3,22 +3,33 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Cross-AI Memory</title>
+    <title>Memosaic</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body class="popup-page">
     <main class="popup-card">
       <div class="brand-mark" aria-hidden="true">M</div>
       <div>
-        <h1>Cross-AI Memory</h1>
-        <p class="muted">One local memory for your AI chats.</p>
+        <h1 data-i18n="app.name">Memosaic</h1>
+        <p class="muted" data-i18n="app.tagline">One local memory for every AI chat.</p>
       </div>
       <div class="supported-sites">
         <span>DeepSeek</span><span>Gemini</span><span>MiMo Studio</span>
       </div>
-      <button id="open-memory" class="primary-button">Open memory editor</button>
-      <p class="fine-print">Memory stays in this browser profile.</p>
+      <label class="language-control" for="language">
+        <span data-i18n="app.language">Language</span>
+        <select id="language" aria-describedby="language-hint">
+          <option value="auto" data-i18n="app.languageAuto">Follow browser</option>
+          <option value="en">English</option>
+          <option value="zh-CN">简体中文</option>
+        </select>
+      </label>
+      <p id="language-hint" class="fine-print language-hint" data-i18n="app.languageHint">The selected language controls the interface and the model instruction injected into chat.</p>
+      <button id="open-memory" class="primary-button" data-i18n="app.openEditor">Open memory editor</button>
+      <p class="fine-print" data-i18n="app.localOnly">Memory stays in this browser profile.</p>
     </main>
+    <script src="src/shared/namespace.js"></script>
+    <script src="src/shared/i18n.js"></script>
     <script src="src/popup.js"></script>
   </body>
 </html>

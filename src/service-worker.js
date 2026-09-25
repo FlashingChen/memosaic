@@ -1,15 +1,15 @@
+import "./shared/namespace.js";
+import "./shared/i18n.js";
+import "./shared/protocol.js";
+import "./shared/providers.js";
 import { clearMemory, editMemory, getState, readMemory, saveManualMemory } from "./memory-store.js";
 
-const PROVIDERS = new Map([
-  ["chat.deepseek.com", "DeepSeek"],
-  ["gemini.google.com", "Gemini"],
-  ["aistudio.xiaomimimo.com", "Xiaomi MiMo Studio"]
-]);
+const { protocol, providers } = globalThis.Memosaic;
 
 function providerFromSender(sender) {
   try {
     const host = new URL(sender?.url || sender?.tab?.url || "").hostname;
-    return PROVIDERS.get(host) || null;
+    return providers.fromHost(host);
   } catch {
     return null;
   }
@@ -19,15 +19,6 @@ function isExtensionPage(sender) {
   return typeof sender?.url === "string" && sender.url.startsWith(chrome.runtime.getURL(""));
 }
 
-function toolResultText(value) {
-  return [
-    "<<<CAM_MEMORY_TOOL_RESULT>>>",
-    `revision: ${value.revision}`,
-    value.memory,
-    "<<<END_CAM_MEMORY_TOOL_RESULT>>>"
-  ].join("\n");
-}
-
 function errorText(error) {
   const message = error instanceof Error ? error.message : "Memory operation failed.";
   return message.slice(0, 800);
@@ -35,7 +26,9 @@ function errorText(error) {
 
 async function handleToolCall(message, sender) {
   const provider = providerFromSender(sender);
-  if (!provider) throw new Error("UNSUPPORTED_PROVIDER: memory tools are only available on supported AI websites.");
+  if (!provider) {
+    throw new Error("UNSUPPORTED_PROVIDER: memory tools are only available on supported AI websites.");
+  }
 
   const call = message.call;
   if (!call || typeof call !== "object" || Array.isArray(call) || typeof call.name !== "string") {
@@ -47,11 +40,12 @@ async function handleToolCall(message, sender) {
     if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length !== 0) {
       throw new Error("INVALID_TOOL_CALL: read_memory takes an empty arguments object.");
     }
-    return toolResultText(await readMemory());
+    const state = await readMemory();
+    return protocol.createToolResult(state.revision, state.memory);
   }
 
   if (call.name === "edit_memory") {
-    const state = await editMemory(args, provider);
+    const state = await editMemory(args, provider.name);
     return `EDIT_OK\nrevision: ${state.revision}`;
   }
 

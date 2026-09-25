@@ -1,11 +1,19 @@
+const { i18n } = globalThis.Memosaic;
 const editor = document.getElementById("memory");
 const revisionLabel = document.getElementById("revision");
 const statusLabel = document.getElementById("status");
 const countLabel = document.getElementById("char-count");
 const historyList = document.getElementById("history");
 const emptyHistory = document.getElementById("empty-history");
+const languageSelect = document.getElementById("language");
 let baseRevision = 0;
 let loadedMemory = "";
+let currentLocale = i18n.normalizeLocale("auto");
+let lastState = null;
+
+function t(key, values) {
+  return i18n.translate(currentLocale, key, values);
+}
 
 function setStatus(message, kind = "") {
   statusLabel.textContent = message;
@@ -13,12 +21,12 @@ function setStatus(message, kind = "") {
 }
 
 function updateCount() {
-  countLabel.textContent = `${editor.value.length.toLocaleString()} characters`;
+  countLabel.textContent = t("memory.characters", { count: editor.value.length.toLocaleString(currentLocale) });
 }
 
 function formatTimestamp(value) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(currentLocale);
 }
 
 function renderHistory(entries) {
@@ -34,7 +42,10 @@ function renderHistory(entries) {
     const provider = document.createElement("strong");
     provider.textContent = entry.provider;
     const revisions = document.createElement("span");
-    revisions.textContent = `revision ${entry.previousRevision} → ${entry.newRevision}`;
+    revisions.textContent = t("memory.revisionTransition", {
+      from: entry.previousRevision,
+      to: entry.newRevision
+    });
     header.append(provider, revisions);
 
     const details = document.createElement("div");
@@ -55,32 +66,51 @@ function renderHistory(entries) {
   }
 }
 
+function renderRevision(state, draftBase = null) {
+  revisionLabel.textContent = draftBase === null
+    ? t("memory.revision", { revision: state.revision })
+    : t("memory.latestRevision", { latest: state.revision, base: draftBase });
+}
+
 function applyState(state) {
+  lastState = state;
   baseRevision = state.revision;
   loadedMemory = state.memory;
   editor.value = state.memory;
-  revisionLabel.textContent = `Revision ${state.revision}`;
+  renderRevision(state);
   updateCount();
   renderHistory(state.history || []);
 }
 
 async function request(message) {
   const response = await chrome.runtime.sendMessage(message);
-  if (!response?.ok) throw new Error(response?.error || "The extension could not complete that request.");
+  if (!response?.ok) throw new Error(response?.error || t("memory.unknownError"));
   return response.state;
 }
 
 async function loadMemory({ replaceEditor = true } = {}) {
   try {
     const state = await request({ type: "GET_STATE" });
+    lastState = state;
     if (replaceEditor || editor.value === loadedMemory) applyState(state);
     else {
-      revisionLabel.textContent = `Latest revision ${state.revision} · draft based on ${baseRevision}`;
+      renderRevision(state, baseRevision);
       renderHistory(state.history || []);
     }
-    setStatus("Memory is stored locally.");
+    setStatus(t("memory.statusStored"));
   } catch (error) {
     setStatus(error.message, "error");
+  }
+}
+
+function applyLocale(locale) {
+  currentLocale = i18n.applyTranslations(document, locale);
+  i18n.setDocumentLanguage(currentLocale);
+  document.title = t("memory.title");
+  updateCount();
+  if (lastState) {
+    renderRevision(lastState);
+    renderHistory(lastState.history || []);
   }
 }
 
@@ -90,7 +120,7 @@ document.getElementById("save").addEventListener("click", async () => {
   try {
     const state = await request({ type: "SAVE_MEMORY", memory: editor.value, baseRevision });
     applyState(state);
-    setStatus("Memory saved.", "success");
+    setStatus(t("memory.statusSaved"), "success");
   } catch (error) {
     if (error.message.includes("REVISION_CONFLICT")) {
       await loadMemory({ replaceEditor: false });
@@ -102,11 +132,11 @@ document.getElementById("save").addEventListener("click", async () => {
 document.getElementById("refresh").addEventListener("click", () => loadMemory());
 
 document.getElementById("clear").addEventListener("click", async () => {
-  if (!window.confirm("Clear the entire memory document? This creates a new revision.")) return;
+  if (!window.confirm(t("memory.confirmClear"))) return;
   try {
     const state = await request({ type: "CLEAR_MEMORY", baseRevision });
     applyState(state);
-    setStatus("Memory cleared.", "success");
+    setStatus(t("memory.statusCleared"), "success");
   } catch (error) {
     if (error.message.includes("REVISION_CONFLICT")) {
       await loadMemory({ replaceEditor: false });
@@ -115,4 +145,17 @@ document.getElementById("clear").addEventListener("click", async () => {
   }
 });
 
-loadMemory();
+languageSelect.addEventListener("change", async () => {
+  const language = languageSelect.value;
+  await chrome.storage.local.set({ language });
+  applyLocale(language);
+});
+
+async function initialize() {
+  const { language = "auto" } = await chrome.storage.local.get("language");
+  languageSelect.value = language === "auto" ? "auto" : i18n.normalizeLocale(language);
+  applyLocale(language);
+  await loadMemory();
+}
+
+initialize();

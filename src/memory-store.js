@@ -1,4 +1,5 @@
-const DB_NAME = "cross-ai-memory";
+const DB_NAME = "memosaic";
+const LEGACY_DB_NAME = "cross-ai-memory";
 const DB_VERSION = 1;
 const STORE_NAME = "documents";
 const STATE_KEY = "user-memory";
@@ -21,11 +22,9 @@ const DEFAULT_MEMORY = `# User
 
 let databasePromise;
 
-function openDatabase() {
-  if (databasePromise) return databasePromise;
-
-  databasePromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+function openNamedDatabase(name) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -36,6 +35,75 @@ function openDatabase() {
     request.onerror = () => reject(request.error || new Error("Could not open local memory storage."));
     request.onblocked = () => reject(new Error("Memory storage upgrade is blocked by another extension page."));
   });
+}
+
+function readState(db) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const request = transaction.objectStore(STORE_NAME).get(STATE_KEY);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error || new Error("Could not read local memory."));
+  });
+}
+
+function writeState(db, state) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    transaction.objectStore(STORE_NAME).put(state);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error("Could not migrate local memory."));
+    transaction.onabort = () => reject(transaction.error || new Error("Memory migration was aborted."));
+  });
+}
+
+function isLegacyState(value) {
+  return !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof value.memory === "string" &&
+    value.memory.length <= MAX_MEMORY_CHARS &&
+    Number.isSafeInteger(value.revision) &&
+    value.revision >= 0;
+}
+
+async function readLegacyState() {
+  if (globalThis.indexedDB.databases) {
+    const databases = await indexedDB.databases();
+    if (!databases.some((database) => database.name === LEGACY_DB_NAME)) return null;
+  }
+
+  const legacyDatabase = await openNamedDatabase(LEGACY_DB_NAME);
+  try {
+    const legacyState = await readState(legacyDatabase);
+    return isLegacyState(legacyState) ? legacyState : null;
+  } finally {
+    legacyDatabase.close();
+  }
+}
+
+async function migrateLegacyState(database) {
+  if (await readState(database)) return;
+  try {
+    const legacyState = await readLegacyState();
+    if (!legacyState) return;
+    await writeState(database, {
+      ...legacyState,
+      id: STATE_KEY,
+      history: Array.isArray(legacyState.history) ? legacyState.history.slice(0, MAX_HISTORY) : []
+    });
+  } catch {
+    // A failed migration leaves the new database empty and does not block the extension.
+  }
+}
+
+function openDatabase() {
+  if (databasePromise) return databasePromise;
+
+  databasePromise = (async () => {
+    const database = await openNamedDatabase(DB_NAME);
+    await migrateLegacyState(database);
+    return database;
+  })();
 
   return databasePromise;
 }
@@ -59,12 +127,20 @@ function runTransaction(mode, onState) {
         result = outcome.result;
         if (outcome.state) store.put(outcome.state);
       } catch (error) {
-        try { transaction.abort(); } catch { /* The transaction may already be inactive. */ }
+        try {
+          transaction.abort();
+        } catch {
+          // The transaction may already be inactive.
+        }
         reject(error);
       }
     };
     request.onerror = () => {
-      try { transaction.abort(); } catch { /* The transaction may already be inactive. */ }
+      try {
+        transaction.abort();
+      } catch {
+        // The transaction may already be inactive.
+      }
       reject(request.error || new Error("Could not read local memory."));
     };
     transaction.oncomplete = () => resolve(result);
@@ -178,7 +254,10 @@ function applyOperations(original, operations) {
 }
 
 export async function getState() {
-  return runTransaction("readwrite", (current, { missing }) => ({ state: missing ? current : null, result: publicState(current) }));
+  return runTransaction("readwrite", (current, { missing }) => ({
+    state: missing ? current : null,
+    result: publicState(current)
+  }));
 }
 
 export async function readMemory() {
@@ -193,7 +272,12 @@ export async function editMemory(args, provider) {
     const { memory, change } = applyOperations(current.memory, args.operations);
     const previousRevision = current.revision;
     const next = { ...current, memory, revision: previousRevision + 1 };
-    addHistory(next, { provider, operation: args.operations.map((item) => item.type).join(", "), previousRevision, change });
+    addHistory(next, {
+      provider,
+      operation: args.operations.map((item) => item.type).join(", "),
+      previousRevision,
+      change
+    });
     return { state: next, result: publicState(next) };
   });
 }
@@ -208,7 +292,12 @@ export async function saveManualMemory({ memory, baseRevision }) {
     const previousRevision = current.revision;
     const next = { ...current, memory, revision: previousRevision + 1 };
     const change = `Manual edit. Previous text: ${current.memory.slice(0, 500)}\nNew text: ${memory.slice(0, 500)}`;
-    addHistory(next, { provider: "Memory editor", operation: "manual replace", previousRevision, change });
+    addHistory(next, {
+      provider: "Memory editor",
+      operation: "manual replace",
+      previousRevision,
+      change
+    });
     return { state: next, result: publicState(next) };
   });
 }
@@ -219,7 +308,12 @@ export async function clearMemory({ baseRevision }) {
     if (current.memory === "") return { state: null, result: publicState(current) };
     const previousRevision = current.revision;
     const next = { ...current, memory: "", revision: previousRevision + 1 };
-    addHistory(next, { provider: "Memory editor", operation: "clear", previousRevision, change: `Cleared ${current.memory.length} characters of memory.` });
+    addHistory(next, {
+      provider: "Memory editor",
+      operation: "clear",
+      previousRevision,
+      change: `Cleared ${current.memory.length} characters of memory.`
+    });
     return { state: next, result: publicState(next) };
   });
 }

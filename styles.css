@@ -119,3 +119,66 @@ button:active { transform: translateY(1px); }
   .button-row button { flex: 1; }
   .editor-card, .history-card { padding: 16px; }
 }
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.language-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.language-control select {
+  appearance: none;
+  border: 1px solid #d9e0eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  padding: 7px 28px 7px 9px;
+  font: inherit;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, #667085 50%), linear-gradient(135deg, #667085 50%, transparent 50%);
+  background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  outline: none;
+}
+
+.language-control select:focus {
+  border-color: #627ee7;
+  box-shadow: 0 0 0 3px rgb(98 126 231 / 13%);
+}
+
+.popup-card .language-control {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.popup-card .language-control select {
+  min-width: 128px;
+}
+
+.popup-card .language-hint {
+  text-align: left;
+  line-height: 1.45;
+  margin: 7px 0 0;
+}
+
+.popup-card > #open-memory {
+  margin-top: 13px;
+}
+
+@media (max-width: 680px) {
+  .header-tools { width: 100%; justify-content: flex-start; }
+}
