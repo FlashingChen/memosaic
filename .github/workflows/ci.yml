@@ -1,0 +1,68 @@
+name: CI
+
+# Runs the same checks the release workflow requires, so a broken commit is
+# caught on the pull request instead of on the release tag.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Check and test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the minimum declared in package.json engines; 22 guards against
+        # breaking on the next LTS.
+        node: [20, 22]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dependencies
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      - name: Syntax-check the browser scripts
+        run: npm run check
+
+      - name: Run the test suite
+        run: npm test
+
+  bundle:
+    name: Build the extension bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Proves packaging still works before a tag is ever pushed, and fails if
+      # manifest.json and package.json drift apart.
+      - name: Build the extension bundle
+        run: npm run package
+
+      - name: Show what was packaged
+        run: |
+          unzip -l dist/*.zip
+          cat dist/*.sha256

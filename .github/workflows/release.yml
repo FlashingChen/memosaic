@@ -1,0 +1,166 @@
+name: Release
+
+# Pushing a v<version> tag verifies, packages, and publishes the extension.
+#
+# The tag must equal the version in manifest.json and package.json, so the
+# normal flow is:
+#
+#   npm version patch          # bumps both files, commits, and creates v0.2.2
+#   git push --follow-tags
+#
+# A tag that does not match the manifest version fails the build instead of
+# publishing a release whose version number lies.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to rebuild and republish, for example v0.2.1"
+        required: true
+        type: string
+
+# Least privilege by default; the publish job opts into contents: write.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.release-tag.outputs.tag }}
+      version: ${{ steps.release-tag.outputs.version }}
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # Full history so generated release notes can diff against the
+          # previous tag and the ancestry check below can see origin/main.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Resolve the release tag
+        id: release-tag
+        env:
+          # Passed through the environment so a tag name can never be
+          # interpreted as shell syntax.
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${REQUESTED_TAG:-}" ]; then
+            TAG="$REQUESTED_TAG"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "::error::Tag '$TAG' must look like v1.2.3 and match the extension version exactly."
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG (extension version ${TAG#v})."
+
+      - name: Confirm the tag is on the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release-tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          DEFAULT_BRANCH="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .default_branch)"
+          git fetch --no-tags origin \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" \
+            "+refs/tags/${TAG}:refs/tags/${TAG}"
+
+          if git merge-base --is-ancestor "${TAG}^{commit}" "refs/remotes/origin/${DEFAULT_BRANCH}"; then
+            echo "$TAG is reachable from $DEFAULT_BRANCH."
+          else
+            echo "::error::$TAG is not on $DEFAULT_BRANCH. Merge the tagged commit first, or tag from $DEFAULT_BRANCH."
+            exit 1
+          fi
+
+      # No dependencies are declared today, so this stays a no-op until a
+      # lockfile is committed and the step starts keeping CI honest.
+      - name: Install dependencies
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        run: npm ci
+
+      - name: Syntax-check the browser scripts
+        run: npm run check
+
+      - name: Run the test suite
+        run: npm test
+
+      # Also the version gate: the packaging script refuses to build unless the
+      # tag, manifest.json, and package.json all agree.
+      - name: Build the extension bundle
+        env:
+          VERSION: ${{ steps.release-tag.outputs.version }}
+        run: npm run package -- --version "$VERSION"
+
+      - name: Upload the bundle for the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-bundle
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  publish:
+    name: Publish the GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the verified bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-bundle
+          path: dist
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          ASSETS=(dist/*.zip dist/*.sha256)
+          if [ ${#ASSETS[@]} -eq 0 ]; then
+            echo "::error::The build job produced no release assets."
+            exit 1
+          fi
+
+          # Re-running a workflow for the same tag replaces the assets instead
+          # of failing on an existing release.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; replacing its assets."
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --title "Memosaic $TAG" \
+              --generate-notes \
+              --verify-tag \
+              --latest
+          fi
+
+          gh release view "$TAG" --json url --jq '"Published " + .url'

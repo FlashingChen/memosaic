@@ -71,9 +71,15 @@ tests/
   adapters.test.js
   protocol.test.js
   providers.test.js
+scripts/
+  package.mjs               builds the installable bundle
+  sync-manifest-version.mjs keeps the manifest version in sync
 docs/
   adapters.md
   architecture.md
+.github/workflows/
+  ci.yml                    check, test, and package on every change
+  release.yml               build and publish a release from a tag
 ```
 
 ## Language support
@@ -108,7 +114,47 @@ npm run check
 npm test
 ```
 
-`npm run check` syntax-checks the browser scripts. `npm test` covers provider registration, route parsing, protocol parsing, the MiMo reasoning-header regression, and localization.
+`npm run check` syntax-checks the browser scripts. `npm test` covers provider registration, route parsing, protocol parsing, the Gemini response-extraction regression, the MiMo reasoning-header regression, and localization.
+
+### Build the installable bundle
+
+The extension has no compile step, so `npm run package` selects the runtime files, validates the version, and writes `dist/memosaic-<version>.zip` with `manifest.json` at the archive root:
+
+```bash
+npm run package
+# Memosaic 0.2.1
+#   files  18
+#   size   26.9 KiB
+#   sha256 <digest>
+#   output dist/memosaic-0.2.1.zip
+```
+
+The archive is the same file set the release workflow publishes, and `dist/` is ignored by git. `tests/`, `docs/`, and the contributor-only `src/adapters/_template.js` scaffolding are excluded. A `.sha256` file is written next to the archive; verify a download with `shasum -a 256 -c memosaic-0.2.1.zip.sha256`.
+
+## Releasing
+
+Releases are built by GitHub Actions, not by hand. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs whenever a `v*` tag is pushed and publishes a GitHub release with the extension zip and its checksum attached.
+
+The tag, `manifest.json`, and `package.json` must all carry the same version. `npm version` keeps them aligned automatically:
+
+```bash
+npm version patch          # or minor / major
+git push --follow-tags
+```
+
+`npm version` bumps `package.json`, runs the `version` lifecycle script that copies the new number into `manifest.json`, commits both files, and creates the matching `v<version>` tag. Pushing that tag starts the release.
+
+The workflow then:
+
+1. refuses tags that are not shaped like `v1.2.3`;
+2. confirms the tagged commit is reachable from the default branch;
+3. runs `npm run check` and `npm test`;
+4. builds the bundle with `npm run package -- --version <tag version>`, which fails if the tag and the two manifests disagree;
+5. creates the release with generated notes, or replaces the assets when re-running for an existing tag.
+
+`workflow_dispatch` runs the same pipeline for an existing tag, which is the way to republish after a failed job.
+
+Chrome's version syntax accepts one to four dot-separated integers and no prerelease suffix, so `v0.3.0-rc.1` is rejected — bump to `v0.3.0` or use a build like `v0.3.0.1`. Publishing to the Chrome Web Store is not wired up; it needs store API credentials and a reviewed listing.
 
 ## Contributing
 
