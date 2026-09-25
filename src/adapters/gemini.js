@@ -26,6 +26,17 @@
       "[class*='response-content']",
       "[class*='markdown']"
     ],
+    // The turn element also holds the reasoning block and the action toolbar.
+    // Gemini renders toolbar icons as text glyphs, so the element's own
+    // innerText contains strings such as "thumb_up" and "more_vert" after the
+    // reply. Read the reply body only.
+    responseTextSelectors: [
+      "[data-test-id*='model-response'] .markdown-main-panel",
+      "model-response message-content",
+      "message-content",
+      ".markdown-main-panel",
+      "[class*='response-content'] .markdown"
+    ],
     userMessageSelectors: [
       "user-query",
       "[data-test-id*='user-query']",
@@ -33,7 +44,15 @@
       "[class*='query-content']"
     ],
     newChatPattern: /new chat|new conversation|start a new chat|新对话|开启新对话/i,
+    // Gemini swaps one control between send and stop while it generates. Its
+    // "Stop response" label also ends with the word "response", so the adapters
+    // must name the stop label explicitly instead of inferring it.
+    sendButtonSelectors: [
+      "button[aria-label*='Send' i]",
+      "button[aria-label*='发送']"
+    ],
     sendButtonLabels: /send|send message|submit|发送|发送消息|提交/i,
+    stopButtonLabels: /stop|stop response|cancel|停止|停止回答|中止|取消/i,
     sendFallback: "enter"
   });
 })();

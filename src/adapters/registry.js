@@ -36,6 +36,9 @@
     config.hosts = config.hosts.map((host) => String(host).toLowerCase());
     config.composerSelectors = config.composerSelectors.map(String);
     config.responseSelectors = config.responseSelectors.map(String);
+    if (Array.isArray(config.responseTextSelectors)) {
+      config.responseTextSelectors = config.responseTextSelectors.map(String);
+    }
     byId.set(config.id, config);
     adapters.push(config);
     return config;

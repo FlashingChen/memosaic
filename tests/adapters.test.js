@@ -45,3 +45,35 @@ test("DeepSeek and Gemini retain their conversation key routes", () => {
     "https://gemini.google.com:gemini:xyz789"
   );
 });
+
+test("send and stop controls are distinguishable on every provider", () => {
+  // Gemini swaps one control between "Send message" and "Stop response", and a
+  // substring test for "send" cannot see the difference. Naming the stop control
+  // is what keeps the tool result from interrupting a live answer.
+  const localeLabels = {
+    deepseek: ["Send message", "Stop generating", "发送消息", "停止生成"],
+    gemini: ["Send message", "Stop response", "发送消息", "停止回答"],
+    mimo: ["Send message", "Stop generating", "发送消息", "停止生成"]
+  };
+
+  for (const adapter of adapters.list()) {
+    assert.ok(adapter.stopButtonLabels instanceof RegExp, `${adapter.id} must declare stopButtonLabels`);
+    for (const label of localeLabels[adapter.id] || ["Send message"]) {
+      if (/stop|停止|中止|取消/i.test(label)) {
+        assert.equal(adapter.stopButtonLabels.test(label), true, `${adapter.id} should treat "${label}" as a stop control`);
+      }
+      if (/send|发送/i.test(label)) {
+        assert.equal(adapter.sendButtonLabels.test(label), true, `${adapter.id} should treat "${label}" as a send control`);
+      }
+    }
+  }
+
+  // The generic "last enabled control" fallback must exclude stop-labeled
+  // controls, otherwise it clicks Stop while the model is generating.
+  const gemini = adapters.findForHost("gemini.google.com");
+  const enabledControls = ["Send message", "Stop response"];
+  assert.deepEqual(
+    enabledControls.filter((label) => !gemini.stopButtonLabels.test(label)),
+    ["Send message"]
+  );
+});

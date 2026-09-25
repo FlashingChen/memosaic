@@ -1,0 +1,27 @@
+<!--
+  Minimal reproduction of a Gemini assistant turn.
+  `model-response` renders the reply body, the reasoning block, and the action
+  toolbar (thumb up/down, copy, more options) inside one element. Gemini
+  renders toolbar icons as text glyphs, so element.innerText returns the icon
+  ligature names ("thumb_up" ...) after the reply body.
+-->
+<model-response>
+  <div class="response-container">
+    <div class="thoughts-content"><div class="thoughts">Considering whether memory is needed</div></div>
+    <message-content>
+      <div class="markdown markdown-main-panel">
+        <p>&lt;&lt;&lt;MEMOSAIC_MEMORY_TOOL_CALL&gt;&gt;&gt;</p>
+        <p>{"name":"read_memory","arguments":{}}</p>
+        <p>&lt;&lt;&lt;END_MEMOSAIC_MEMORY_TOOL_CALL&gt;&gt;&gt;</p>
+      </div>
+    </message-content>
+    <div class="response-footer">
+      <div class="buttons-container">
+        <button aria-label="Good response"><mat-icon>thumb_up</mat-icon></button>
+        <button aria-label="Bad response"><mat-icon>thumb_down</mat-icon></button>
+        <button aria-label="Copy"><mat-icon>content_copy</mat-icon></button>
+        <button aria-label="More options"><mat-icon>more_vert</mat-icon></button>
+      </div>
+    </div>
+  </div>
+</model-response>

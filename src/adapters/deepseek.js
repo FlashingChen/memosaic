@@ -32,6 +32,7 @@
     ],
     newChatPattern: /new chat|new conversation|start a new chat|新对话|开启新对话/i,
     sendButtonLabels: /send|send message|submit|发送|发送消息|提交/i,
+    stopButtonLabels: /stop|stop generating|cancel|停止|停止生成|中止|取消/i,
     sendFallback: "enter"
   });
 })();

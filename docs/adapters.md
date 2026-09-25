@@ -13,6 +13,7 @@ Start from [`src/adapters/_template.js`](../src/adapters/_template.js).
 | `hosts` | string[] | Exact hostnames, without a path or protocol. |
 | `composerSelectors` | string[] | Candidate textarea or contenteditable selectors, most specific first. |
 | `responseSelectors` | string[] | Candidate assistant message selectors, most specific first. |
+| `responseTextSelectors` | string[] | Descendant selectors whose text is the reply body. Use when the response element also contains reasoning, action toolbars, or other chrome. |
 
 ## Optional fields
 
@@ -23,7 +24,7 @@ Start from [`src/adapters/_template.js`](../src/adapters/_template.js).
 | `userMessageSelectors` | string[] | Excludes user-message elements from response scanning. |
 | `isUserMessage(element)` | function | Custom user-message exclusion when selectors are insufficient. |
 | `isResponseElement(element)` | function | Additional response filtering after visibility checks. |
-| `getResponseText(element)` | function | Custom text extraction when `innerText` includes unrelated controls. |
+| `getResponseText(element)` | function | Last-resort custom text extraction. Prefer `responseTextSelectors`, which needs no provider code. |
 | `newChatPattern` | RegExp | Text or accessible-label pattern for the new-chat control. |
 | `sendButtonSelectors` | string[] | Exact send-button selectors, tried before generic buttons. |
 | `sendButtonLabels` | RegExp | Accessible label, title, class, or text match for the send control. |
@@ -53,6 +54,7 @@ conversationKey(location) {
 - Include one broad fallback selector when the product has no semantic marker.
 - Do not include user-message selectors in `responseSelectors`.
 - Never use a selector that can match the entire application shell; it may include the user's prompt.
+- Add `responseTextSelectors` when the assistant element wraps more than the reply text. Gemini, for example, renders its reasoning block and its action toolbar inside the same `model-response` element, and the toolbar icon font renders as text such as `thumb_up`.
 - Keep all selectors inside the adapter. Shared-controller edits should not be needed for a normal provider update.
 
 ## Register the provider

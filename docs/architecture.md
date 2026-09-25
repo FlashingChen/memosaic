@@ -6,7 +6,9 @@ Memosaic is split into five layers.
 
 `src/shared/protocol.js` owns the model-facing tool markers, bootstrap generation, result generation, and the parser that recognizes a tool call in an assistant response.
 
-The parser accepts a normal wrapper and a wrapper preceded only by known reasoning labels such as `已深度思考（用时 0.4 秒）`. This is required on providers that render an internal reasoning heading inside the same assistant response element.
+Response elements rarely contain the reply text alone: providers add a reasoning heading, an action toolbar whose icon font renders as text, a collapsed summary, or Markdown furniture. The parser therefore ignores text outside the wrapper, and the payload may carry a Markdown fence or trailing prose as long as one JSON object with a string tool name can be recovered from it, so a valid call is not lost to extraction noise.
+
+The parser is not a trust boundary. Everything outside the wrapper is discarded without evaluation, and the payload is still validated field by field in the store. A stricter wrapper also stays rejected: an unclosed wrapper, a repeated opening marker, or a payload that contains no JSON object is reported as malformed.
 
 ## 2. Local memory store
 
