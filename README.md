@@ -1,15 +1,79 @@
+<div align="center">
+
+**English** · [简体中文](README.zh-CN.md)
+
+<br>
+
+<img src="icons/icon512.png" width="96" height="96" alt="Memosaic logo">
+
 # Memosaic
 
-**One local memory for every AI chat.**
+### One memory. Every AI chat. Yours.
 
-Memosaic is a local-first Chrome/Chromium Manifest V3 extension. It keeps one editable Markdown memory document in the browser and exposes two bounded tools to supported chat pages:
+[![CI](https://github.com/FlashingChen/memosaic/actions/workflows/ci.yml/badge.svg)](https://github.com/FlashingChen/memosaic/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/FlashingChen/memosaic?sort=semver)](https://github.com/FlashingChen/memosaic/releases)
+[![License](https://img.shields.io/github/license/FlashingChen/memosaic)](LICENSE)
+![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285F4)
+![Providers](https://img.shields.io/badge/providers-3-8A2BE2)
 
-- `read_memory` returns the current document and revision.
-- `edit_memory` applies validated append, replace, or delete operations.
+<sub>Local-first · No account · No server · No telemetry</sub>
 
-The name combines **memory** and **mosaic**: each AI conversation sees the same user-owned picture instead of requiring you to explain yourself again and again.
+</div>
 
-> Memosaic is the new name for the prototype previously called **CAM / Cross-AI Memory**.
+---
+
+## The problem
+
+You have already explained yourself. Your stack, your conventions, how you like answers written, what you are building and why.
+
+Then you opened a different AI chat, and it knew none of it.
+
+Every assistant keeps its own memory — or none at all. The memory features that do exist are per-vendor, server-side, opaque, and impossible to edit. So you explain again. And the context you carefully built in one tool never reaches the next one. Six chats later you are still the only one holding the thread.
+
+## The fix
+
+**Memosaic keeps one Markdown document that you own, and lets every supported chat read from it and write to it.**
+
+It lives in your browser profile — not on a server, not in a vendor's database. Exactly two narrow tools are exposed to the page, `read_memory` and `edit_memory`. Teach something to DeepSeek, and Gemini can use it in the next conversation.
+
+> **Your memory shouldn't live in someone else's database.**
+
+## How it works
+
+Web chat pages expose no provider-independent tool-calling API, so Memosaic builds the bridge in the conversation itself. On the first submitted message of a conversation, the adapter appends a short bootstrap — containing none of your memory — that tells the model when to ask for it and how to wrap the request. Validated calls go to the extension's service worker, which executes the local operation and hands back a bounded result, which the page sends as a follow-up message.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant You
+    participant Chat as Chat page
+    participant Model
+    participant Ext as Memosaic
+    participant Mem as Local memory
+
+    You->>Chat: ask a question
+    Chat->>Model: question + bootstrap
+    Model-->>Chat: memory tool call
+    Chat->>Ext: validated tool call
+    Ext->>Mem: read / edit with revision check
+    Mem-->>Ext: document
+    Ext-->>Chat: bounded result
+    Chat->>Model: result as a follow-up message
+    Model-->>You: an answer that knows your context
+```
+
+Provider-specific concerns stay in their adapters — route detection, composer and send-button discovery, response candidates, user-message exclusion, new-chat reset. The shared controller contains no provider hostnames, routes, or selectors.
+
+## At a glance
+
+| | |
+| --- | --- |
+| **What it is** | Chrome/Chromium extension, Manifest V3 |
+| **Memory** | One editable Markdown document, stored in IndexedDB in your browser profile |
+| **Exposed to models** | `read_memory`, `edit_memory` — and nothing else |
+| **Permissions** | `storage` only · no host permissions · no remote API · no shell or file access |
+| **Languages** | English and Simplified Chinese, for both the UI and the injected instruction |
+| **Providers** | DeepSeek, Gemini, Xiaomi MiMo Studio |
 
 ## Supported providers
 
@@ -19,46 +83,79 @@ The name combines **memory** and **mosaic**: each AI conversation sees the same 
 | Gemini | `gemini.google.com` | Supported |
 | Xiaomi MiMo Studio | `aistudio.xiaomimimo.com` | Supported |
 
-Each provider has its own adapter under [`src/adapters`](src/adapters). The shared controller never contains provider-specific DOM selectors or route logic.
+Adding a provider is the main contribution path: copy [`src/adapters/_template.js`](src/adapters/_template.js), implement the contract, register the host. See the [adapter guide](docs/adapters.md).
 
-## Install locally
+## Install
 
-1. Open `chrome://extensions` in Chrome or another Chromium browser.
-2. Enable **Developer mode**.
-3. Choose **Load unpacked** and select this repository directory.
-4. Open the Memosaic popup and choose **Open memory editor**.
-5. Use the language selector in the popup or editor. English and Simplified Chinese are included; the setting controls both the UI and the model instruction injected into chat.
+Memosaic is not on the Chrome Web Store yet, so it installs as an unpacked extension. The store listing is planned; the release already produces the exact archive the store accepts.
 
-No account or remote service is required.
+**From a release** (recommended)
 
-## How the web-chat bridge works
+1. Download `memosaic-<version>.zip` from [Releases](https://github.com/FlashingChen/memosaic/releases) and verify it against the published `.sha256`.
+2. Unzip it into a folder **you will keep** — Chrome loads the extension from that path on every start, so moving or deleting it breaks the install.
+3. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select the folder containing `manifest.json`.
+4. Open the Memosaic popup → **Open memory editor**, and write down whatever you want every chat to know.
 
-Supported web chat pages do not expose a provider-independent tool-calling API to extensions. On the first submitted message in a conversation, the selected adapter appends a short bootstrap to that message. The bootstrap contains no memory content. It tells the model when to request `read_memory` and how to wrap a tool call in the Memosaic protocol markers.
+**From a clone** (for development)
 
-When the model replies with a validated wrapper, the content controller sends the call to the extension service worker. The service worker accepts only `read_memory` and `edit_memory`, validates the arguments and revision, executes the local operation, and returns a bounded result. The adapter sends that result as a follow-up chat message.
+Point **Load unpacked** at this repository — `manifest.json` sits at the root — and hit reload after each edit. It loads your working tree, including uncommitted changes.
 
-Provider-specific concerns are isolated in adapters:
+Both paths are the same extension; there is no build step.
 
-- conversation route detection;
-- composer and send-button discovery;
-- response candidates;
-- user-message exclusion;
-- new-chat reset detection.
+## Using it day to day
 
-See [Adapter guide](docs/adapters.md) for the complete interface and a template.
+Once the memory editor has content, just chat normally. The model decides when context is relevant, requests it, and gets it back mid-conversation. Edits made by a model are validated and revision-checked before they touch your document, and every edit is recorded so you can see what changed.
 
-## Project structure
+The language setting in the popup or editor controls both the extension UI and the wording of the instruction injected into chat.
+
+<details>
+<summary><b>Storage, revisions, and safety</b></summary>
+
+<br>
+
+Memory and the latest 50 edit records are stored in IndexedDB inside the extension's browser profile. Memosaic migrates an existing `cross-ai-memory` database into the `memosaic` database the first time the updated extension opens.
+
+Successful model or manual edits increment the revision. Each model edit supplies `base_revision`; replace and delete operations must match one unique substring. Transactions serialize concurrent edits and reject stale revisions.
+
+The protocol never evaluates code, expressions, regular expressions, or file paths. The parser is not a trust boundary either — everything outside the wrapper is discarded unevaluated, and the payload is validated field by field in the store.
+
+</details>
+
+<details>
+<summary><b>Language support</b></summary>
+
+<br>
+
+The runtime picks a locale in this order: the language saved in `chrome.storage.local`, the browser language when the setting is `auto`, then English as the fallback. Built-in locales are `en` and `zh-CN`.
+
+To add one, add its messages in [`src/shared/i18n.js`](src/shared/i18n.js), add it to `SUPPORTED_LOCALES`, and add an option to `popup.html` and `memory.html`. Missing keys fall back to English. Prompt localization is part of the feature: the model instruction must be translated, not only the UI.
+
+</details>
+
+## Development
+
+Requires Node.js 20 or newer. There is no compile step — the repository is the extension.
+
+```bash
+npm run check     # syntax-check the browser scripts
+npm test          # provider, route, protocol, extraction, and i18n coverage
+npm run package   # build dist/memosaic-<version>.zip
+```
+
+`npm run package` selects the runtime files, validates that the tag, `manifest.json`, and `package.json` agree, and writes the archive with `manifest.json` at its root — the layout both `chrome://extensions` and the Chrome Web Store expect — plus a `.sha256` checksum. `tests/`, `docs/`, and the contributor-only template are excluded.
+
+<details>
+<summary><b>Project structure</b></summary>
+
+<br>
 
 ```text
 src/
-  adapters/
+  adapters/            one file per provider, plus a template
     _template.js       copy this to add a provider
-    deepseek.js
-    gemini.js
-    mimo.js
-    registry.js
+    deepseek.js  gemini.js  mimo.js  registry.js
   content/
-    runtime.js         shared DOM/controller loop
+    runtime.js         shared DOM and controller loop
   shared/
     i18n.js            UI and prompt translations
     protocol.js        tool markers and parser
@@ -67,101 +164,58 @@ src/
   memory-page.js       local editor
   service-worker.js    background tool execution
   popup.js
-tests/
-  adapters.test.js
-  protocol.test.js
-  providers.test.js
+tests/                 node --test suites and DOM fixtures
 scripts/
   package.mjs               builds the installable bundle
   sync-manifest-version.mjs keeps the manifest version in sync
 docs/
-  adapters.md
-  architecture.md
+  architecture.md  adapters.md
 .github/workflows/
   ci.yml                    check, test, and package on every change
   release.yml               build and publish a release from a tag
 ```
 
-## Language support
+</details>
 
-The runtime selects a locale in this order:
+<details>
+<summary><b>Releasing</b></summary>
 
-1. the language saved in `chrome.storage.local`;
-2. the browser language when the setting is `auto`;
-3. English as the fallback.
+<br>
 
-Built-in locales:
+Releases are built by GitHub Actions. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs on any `v*` tag push and publishes a GitHub release with the extension zip and its checksum attached.
 
-- `en`
-- `zh-CN`
-
-To add another locale, add its messages in `src/shared/i18n.js`, add it to `SUPPORTED_LOCALES`, and add an option to `popup.html` and `memory.html`. Missing keys fall back to English.
-
-## Storage and revisions
-
-Memory and the latest 50 edit records are stored in IndexedDB inside the extension's browser profile. Memosaic migrates an existing `cross-ai-memory` database into the new `memosaic` database the first time the updated extension opens.
-
-Successful model or manual edits increment the revision. Each model edit supplies `base_revision`; replace and delete operations must match one unique substring. Transactions serialize concurrent edits and reject stale revisions.
-
-The protocol does not evaluate code, expressions, regular expressions, or file paths. The extension has no host permissions beyond the declared chat pages, no remote API, no shell access, and no arbitrary file access.
-
-## Development
-
-Requires Node.js 20 or newer.
-
-```bash
-npm run check
-npm test
-```
-
-`npm run check` syntax-checks the browser scripts. `npm test` covers provider registration, route parsing, protocol parsing, the Gemini response-extraction regression, the MiMo reasoning-header regression, and localization.
-
-### Build the installable bundle
-
-The extension has no compile step, so `npm run package` selects the runtime files, validates the version, and writes `dist/memosaic-<version>.zip` with `manifest.json` at the archive root:
-
-```bash
-npm run package
-# Memosaic 0.2.1
-#   files  18
-#   size   26.9 KiB
-#   sha256 <digest>
-#   output dist/memosaic-0.2.1.zip
-```
-
-The archive is the same file set the release workflow publishes, and `dist/` is ignored by git. `tests/`, `docs/`, and the contributor-only `src/adapters/_template.js` scaffolding are excluded. A `.sha256` file is written next to the archive; verify a download with `shasum -a 256 -c memosaic-0.2.1.zip.sha256`.
-
-## Releasing
-
-Releases are built by GitHub Actions, not by hand. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs whenever a `v*` tag is pushed and publishes a GitHub release with the extension zip and its checksum attached.
-
-The tag, `manifest.json`, and `package.json` must all carry the same version. `npm version` keeps them aligned automatically:
+The tag, `manifest.json`, and `package.json` must carry the same version, and `npm version` keeps them aligned:
 
 ```bash
 npm version patch          # or minor / major
 git push --follow-tags
 ```
 
-`npm version` bumps `package.json`, runs the `version` lifecycle script that copies the new number into `manifest.json`, commits both files, and creates the matching `v<version>` tag. Pushing that tag starts the release.
+`npm version` bumps `package.json`, runs the `version` lifecycle script that copies the number into `manifest.json`, commits both, and creates the matching tag. The workflow then refuses malformed tags, confirms the tagged commit is reachable from the default branch, runs `npm run check` and `npm test`, builds the bundle with `npm run package -- --version <tag version>` — which fails if the tag and the manifests disagree — and creates the release.
 
-The workflow then:
+`workflow_dispatch` runs the same pipeline for an existing tag, which is how to republish after a failed job.
 
-1. refuses tags that are not shaped like `v1.2.3`;
-2. confirms the tagged commit is reachable from the default branch;
-3. runs `npm run check` and `npm test`;
-4. builds the bundle with `npm run package -- --version <tag version>`, which fails if the tag and the two manifests disagree;
-5. creates the release with generated notes, or replaces the assets when re-running for an existing tag.
+Chrome's version syntax takes one to four dot-separated integers and no prerelease suffix, so `v0.3.0-rc.1` is rejected; use `v0.3.0` or a build like `v0.3.0.1`.
 
-`workflow_dispatch` runs the same pipeline for an existing tag, which is the way to republish after a failed job.
-
-One bootstrap quirk is worth knowing: GitHub only runs a tag-triggered workflow once that workflow file is known on the default branch. So the *first* tag pushed together with a brand-new `release.yml` starts nothing. Push the workflow to the default branch first and tag afterwards, or re-push the tag (or dispatch the run) once it is there. Every later tag triggers normally, including when the branch and tag go up in a single `git push --follow-tags`.
-
-Chrome's version syntax accepts one to four dot-separated integers and no prerelease suffix, so `v0.3.0-rc.1` is rejected — bump to `v0.3.0` or use a build like `v0.3.0.1`. Publishing to the Chrome Web Store is not wired up; it needs store API credentials and a reviewed listing.
+</details>
 
 ## Contributing
 
-Provider adapters are the main contribution path. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [the adapter guide](docs/adapters.md).
+Provider adapters are the main contribution path — AI chat pages change often, so adapter fixes are always welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [adapter guide](docs/adapters.md).
+
+Please never include session tokens, cookies, private chat text, or personal memory excerpts in issues or commits.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+<div align="center">
+<sub>
+
+**Memosaic** — *memory* + *mosaic*: each conversation sees the same picture you own,<br>
+instead of making you explain yourself again and again.
+
+Previously prototyped as **CAM / Cross-AI Memory**.
+
+</sub>
+</div>
