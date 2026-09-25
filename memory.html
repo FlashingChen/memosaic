@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title data-i18n="memory.title">Memory editor · Memosaic</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow" data-i18n="memory.eyebrow">LOCAL MEMORY</p>
+          <h1 data-i18n="memory.heading">Your memory</h1>
+          <p class="muted" data-i18n="memory.description">A single Markdown document shared with supported AI chats in this browser.</p>
+        </div>
+        <div class="header-tools">
+          <label class="language-control" for="language">
+            <span data-i18n="app.language">Language</span>
+            <select id="language">
+              <option value="auto" data-i18n="app.languageAuto">Follow browser</option>
+              <option value="en">English</option>
+              <option value="zh-CN">简体中文</option>
+            </select>
+          </label>
+          <span id="revision" class="revision-pill" data-i18n="memory.loadingRevision">Loading…</span>
+        </div>
+      </header>
+
+      <section class="editor-card" aria-labelledby="memory-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="memory-heading" data-i18n="memory.documentTitle">Memory document</h2>
+            <p class="muted" data-i18n="memory.documentDescription">Review what the AIs can read. Saving creates a new revision.</p>
+          </div>
+          <span id="char-count" class="muted">0</span>
+        </div>
+        <textarea id="memory" spellcheck="false" data-i18n-aria-label="memory.textareaLabel" aria-label="Memory document" placeholder="# User"></textarea>
+        <div class="editor-actions">
+          <span id="status" role="status" class="status-message" data-i18n="memory.statusLoading">Loading memory…</span>
+          <div class="button-row">
+            <button id="refresh" class="secondary-button" data-i18n="memory.reload">Reload</button>
+            <button id="clear" class="danger-button" data-i18n="memory.clear">Clear memory</button>
+            <button id="save" class="primary-button" data-i18n="memory.save">Save changes</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="history-card" aria-labelledby="history-heading">
+        <div class="section-heading">
+          <div>
+            <h2 id="history-heading" data-i18n="memory.recentTitle">Recent edits</h2>
+            <p class="muted" data-i18n="memory.recentDescription">The latest 50 successful changes are kept locally.</p>
+          </div>
+        </div>
+        <ol id="history" class="history-list"></ol>
+        <p id="empty-history" class="empty-state" data-i18n="memory.noEdits" hidden>No edits yet.</p>
+      </section>
+
+      <footer class="page-footer" data-i18n="memory.footer">No cloud account or sync is used. Each browser profile has its own memory.</footer>
+    </main>
+    <script src="src/shared/namespace.js"></script>
+    <script src="src/shared/i18n.js"></script>
+    <script src="src/memory-page.js"></script>
+  </body>
+</html>

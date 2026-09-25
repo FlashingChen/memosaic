@@ -1,0 +1,15 @@
+{
+  "name": "memosaic",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first shared memory for multiple AI chat websites.",
+  "scripts": {
+    "check": "node --check src/service-worker.js && node --check src/memory-store.js && node --check src/content/runtime.js && node --check src/adapters/deepseek.js && node --check src/adapters/gemini.js && node --check src/adapters/mimo.js && node --check src/shared/i18n.js && node --check src/shared/protocol.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

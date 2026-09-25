@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Memosaic",
+  "version": "0.2.0",
+  "description": "One local, user-owned memory shared across supported AI chat websites.",
+  "permissions": ["storage"],
+  "background": {
+    "service_worker": "src/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Memosaic",
+    "default_popup": "popup.html"
+  },
+  "options_page": "memory.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.deepseek.com/*",
+        "https://gemini.google.com/*",
+        "https://aistudio.xiaomimimo.com/*"
+      ],
+      "js": [
+        "src/shared/namespace.js",
+        "src/shared/i18n.js",
+        "src/shared/protocol.js",
+        "src/shared/providers.js",
+        "src/adapters/registry.js",
+        "src/adapters/deepseek.js",
+        "src/adapters/gemini.js",
+        "src/adapters/mimo.js",
+        "src/content/runtime.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
